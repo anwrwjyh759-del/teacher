@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>حسابات السنتر</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;font-family:'Cairo',Tahoma,sans-serif}
+body{background:#eef2f7;padding:15px}
+.box{max-width:850px;margin:auto;background:#fff;border-radius:12px;padding:20px;box-shadow:0 2px 8px #ccc}
+h2{background:#1e3a5f;color:#fff;padding:12px;text-align:center;border-radius:8px;font-size:20px;margin-bottom:15px}
+input{width:100%;padding:10px;margin:5px 0;border:1px solid #ccc;border-radius:6px;font-size:15px}
+.btn{padding:12px;background:#00b894;color:#fff;border:none;border-radius:8px;font-weight:bold;cursor:pointer;margin:5px 0;width:100%;font-size:16px}
+.btn-red{background:#d63031}
+.btn-red:hover{background:#c0392b}
+table{width:100%;border-collapse:collapse;margin-top:15px;font-size:13px}
+th{background:#2d3436;color:#fff;padding:8px;border:1px solid #ddd}
+td{padding:6px;border:1px solid #ddd;text-align:center}
+.paid{color:#00b894;font-weight:bold}
+.notpaid{color:#d63031;font-weight:bold}
+.total-box{display:flex;gap:10px;margin-top:15px}
+.total-box div{flex:1;background:#74b9ff;color:#fff;padding:15px;border-radius:8px;text-align:center;font-size:16px;font-weight:bold}
+.btn-pay{padding:5px 10px;background:#00b894;color:#fff;border:none;border-radius:4px;cursor:pointer}
+.empty-msg{text-align:center;color:#999;padding:30px;font-size:16px}
+@media print{.btn, input{display:none}body{background:#fff}h2{background:#333}}
+</style>
+</head>
+<body>
+
+<div class="box">
+<h2>💰 دفتر حسابات السنتر - محفوظ تلقائي</h2>
+
+<input id="search" placeholder="🔍 ابحث باسم الطالب" oninput="filterStudents()">
+
+<table id="tbl"></table>
+
+<div class="total-box">
+  <div>إجمالي المطلوب<br><span id="totalReq">0</span> جنيه</div>
+  <div>إجمالي المدفوع<br><span id="totalPaid">0</span> جنيه</div>
+  <div>الباقي<br><span id="totalRest">0</span> جنيه</div>
+</div>
+
+<h3 style="margin-top:20px">إضافة طالب جديد</h3>
+<input id="newName" placeholder="اسم الطالب">
+<input id="newFee" type="number" placeholder="المبلغ الشهري: 200">
+<button class="btn" onclick="addStudent()">+ إضافة الطالب</button>
+
+<button class="btn btn-red" onclick="resetMonth()">🔄 تصفير الشهر - مسح كل المدفوعات</button>
+<button class="btn" onclick="window.print()">🖨️ طباعة كشف الحساب PDF</button>
+
+</div>
+
+<script>
+// التطبيق هيفتح فاضي - مفيش أسماء وهمية
+let students = JSON.parse(localStorage.getItem('studentsData')) || [];
+
+function saveData(){
+  localStorage.setItem('studentsData', JSON.stringify(students));
+}
+
+function showTable(list=students){
+  if(list.length === 0){
+    document.getElementById('tbl').innerHTML = '<tr><td colspan="7" class="empty-msg">مفيش طلاب لسه<br>ضيف أول طالب من تحت 👇</td></tr>';
+    document.getElementById('totalReq').innerText = 0;
+    document.getElementById('totalPaid').innerText = 0;
+    document.getElementById('totalRest').innerText = 0;
+    return;
+  }
+
+  let html = '<tr><th>م</th><th>الاسم</th><th>المطلوب</th><th>المدفوع</th><th>الباقي</th><th>الحالة</th><th>دفع</th></tr>';
+  let totalReq=0, totalPaid=0;
+
+  list.forEach((s,i)=>{
+    const rest = s.fee - s.paid;
+    const status = rest<=0? '<span class="paid">مدفوع ✅</span>' : '<span class="notpaid">عليه ' + rest + ' جنيه</span>';
+    totalReq += s.fee;
+    totalPaid += s.paid;
+
+    html += `<tr>
+      <td>${i+1}</td>
+      <td>${s.name}</td>
+      <td>${s.fee}</td>
+      <td>${s.paid}</td>
+      <td>${rest>0?rest:0}</td>
+      <td>${status}</td>
+      <td><button class="btn-pay" onclick="pay(${students.indexOf(s)})">دفع</button></td>
+    </tr>`;
+  });
+
+  document.getElementById('tbl').innerHTML = html;
+  document.getElementById('totalReq').innerText = totalReq;
+  document.getElementById('totalPaid').innerText = totalPaid;
+  document.getElementById('totalRest').innerText = totalReq - totalPaid;
+}
+
+function addStudent(){
+  const name = document.getElementById('newName').value.trim();
+  const fee = Number(document.getElementById('newFee').value);
+  if(!name ||!fee) return alert('اكتب الاسم والمبلغ');
+
+  students.push({name:name, fee:fee, paid:0});
+  document.getElementById('newName').value = '';
+  document.getElementById('newFee').value = '';
+  saveData();
+  showTable();
+  alert('تم إضافة ' + name);
+}
+
+function pay(index){
+  const rest = students[index].fee - students[index].paid;
+  const amount = prompt('الطالب: ' + students[index].name + '\nالباقي: ' + rest + ' جنيه\nاكتب المبلغ المدفوع:');
+  if(amount &&!isNaN(amount) && amount>0){
+    students[index].paid += Number(amount);
+    if(students[index].paid > students[index].fee) students[index].paid = students[index].fee;
+    saveData();
+    showTable();
+  }
+}
+
+function resetMonth(){
+  if(students.length === 0) return alert('مفيش طلاب عشان تصفرهم');
+  if(confirm('متأكد عايز تصفر كل المدفوعات؟\nالطلبة هترجع عليها المبلغ كامل تاني')){
+    students.forEach(s => s.paid = 0);
+    saveData();
+    showTable();
+    alert('تم تصفير الشهر بنجاح ✅');
+  }
+}
+
+function filterStudents(){
+  const q = document.getElementById('search').value.toLowerCase();
+  const filtered = students.filter(s=>s.name.toLowerCase().includes(q));
+  showTable(filtered);
+}
+
+showTable();
+</script>
+</body>
+</html>
